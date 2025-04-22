@@ -8,7 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from PageObjects.LeavePage import LeavePage
 from PageObjects.LoginPage import Login
 from PageObjects.DashboardPage import Dashboard
-
+from Utilities.full_screenshot_util import take_fullscreen_screenshot
+from Utilities.screenshot_util import take_screenshot
 
 
 class Test_04_OrangeHRM:
@@ -17,16 +18,37 @@ class Test_04_OrangeHRM:
     password = "admin123"
 
     @pytest.fixture(autouse=True)
-    def setup(self):
+    def setup(self, request):
         self.driver = webdriver.Chrome()
         self.driver.get(self.base_url)
-        self.driver.maximize_window()
+
+        # Set the window size
+        window_width = 1200  # Adjust the width
+        window_height = 800  # Adjust the height
+        screen_width = self.driver.execute_script("return screen.width;")
+        screen_height = self.driver.execute_script("return screen.height;")
+
+        # Positioning the browser in the top-right corner of the screen
+        self.driver.set_window_position(screen_width - window_width, 0)
+        self.driver.set_window_size(window_width, window_height)
+
+        # Wait for the page to load
         WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located((By.NAME, "username"))
         )
-        yield
-        self.driver.quit()
 
+        def teardown():
+            """Teardown after the test."""
+            self.driver.quit()
+
+            # Take the fullscreen screenshot after closing the browser
+            take_fullscreen_screenshot("terminal_idle_view")  # Fullscreen screenshot when terminal is idle
+
+        # Register the teardown function to be executed after the test
+        request.addfinalizer(teardown)
+
+        yield
+        # After the test, the browser will be closed, and the finalizer will take the screenshot.
 
     def test_logout_functionality(self):
         login = Login(self.driver)
@@ -42,9 +64,20 @@ class Test_04_OrangeHRM:
         WebDriverWait(self.driver, 5).until(
             EC.visibility_of_element_located((By.XPATH, "//a[text()='Logout']"))
         )
+
+        # Take screenshots before logout
+        take_screenshot(self.driver, "before_logout")  # ✅ Screenshot of browser
+        take_fullscreen_screenshot("before_logout_terminal_view")  # Fullscreen terminal view
+
         dashboard.clickLogout()
 
         WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located((By.NAME, "username"))
         )
+
+        # Take screenshots after logout
+        take_screenshot(self.driver, "after_logout")  # ✅ Screenshot of browser
+        take_fullscreen_screenshot("after_logout_terminal_view")  # Fullscreen terminal view
+
+        # Assert that the URL contains the login page
         assert "auth/login" in self.driver.current_url
